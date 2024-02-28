@@ -79,4 +79,130 @@ var _ = Describe("Datanetwork controller", func() {
 			}, timeout, interval).Should(BeFalse())
 		})
 	})
+	Describe("Test HTTPSEnabled function", func() {
+		Context("", func() {
+			It("", func() {
+				in := &System{
+					Spec: SystemSpec{
+						Certificates: &CertificateList{
+							{
+								Type: PlatformCertificate,
+							},
+						},
+					},
+				}
+				out := in.HTTPSEnabled()
+				Expect(out).To(BeTrue())
+			})
+		})
+		Context("", func() {
+			It("", func() {
+				in := &System{
+					Spec: SystemSpec{
+						Certificates: &CertificateList{
+							{
+								Type: DockerCertificate,
+							},
+						},
+					},
+				}
+				out := in.HTTPSEnabled()
+				Expect(out).To(BeFalse())
+			})
+		})
+	})
+	Describe("Test DeepEqual function", func() {
+		Context("", func() {
+			It("", func() {
+				other := &CertificateInfo{
+					Type:   "ssl",
+					Secret: "secret",
+				}
+				in := &CertificateInfo{
+					Signature: "",
+					Type:      "ssl",
+					Secret:    "secret",
+				}
+				out := in.DeepEqual(other)
+				Expect(out).To(BeTrue())
+			})
+		})
+		Context("", func() {
+			It("", func() {
+				other := &CertificateInfo{
+					Type:      "ssl",
+					Secret:    "secret",
+					Signature: "signature",
+				}
+				in := &CertificateInfo{
+					Signature: "signature",
+					Type:      "ssl",
+					Secret:    "secret",
+				}
+				out := in.DeepEqual(other)
+				Expect(out).To(BeTrue())
+			})
+		})
+	})
+	Describe("Test IsKeyEqual function", func() {
+		Context("", func() {
+			It("", func() {
+				x := CertificateInfo{
+					Type:   "ssl",
+					Secret: "secret",
+				}
+				in := CertificateInfo{
+					Signature: "",
+					Type:      "ssl",
+					Secret:    "secret",
+				}
+				out := in.IsKeyEqual(x)
+				Expect(out).To(BeTrue())
+			})
+		})
+		Context("", func() {
+			It("", func() {
+				x := CertificateInfo{
+					Signature: "signature",
+					Type:      "ssl",
+					Secret:    "secret",
+				}
+				in := CertificateInfo{
+					Signature: "signature",
+					Type:      "ssl",
+					Secret:    "secret",
+				}
+				out := in.IsKeyEqual(x)
+				Expect(out).To(BeTrue())
+			})
+		})
+	})
+	Describe("Test DNSServerListToStrings function", func() {
+		Context("", func() {
+			It("", func() {
+				item1 := DNSServer("DNSServer")
+				item2 := DNSServer("DNSServer1")
+				list := make([]DNSServer, 0)
+				list = append(list, item1, item2)
+				items := DNSServerList(list)
+				exp := []string{"DNSServer", "DNSServer1"}
+				out := DNSServerListToStrings(items)
+				Expect(out).To(Equal(exp))
+			})
+		})
+	})
+	Describe("Test NTPServerListToStrings function", func() {
+		Context("", func() {
+			It("", func() {
+				item1 := NTPServer("NTPServer")
+				item2 := NTPServer("NTPServer1")
+				list := make([]NTPServer, 0)
+				list = append(list, item1, item2)
+				items := NTPServerList(list)
+				exp := []string{"NTPServer", "NTPServer1"}
+				out := NTPServerListToStrings(items)
+				Expect(out).To(Equal(exp))
+			})
+		})
+	})
 })

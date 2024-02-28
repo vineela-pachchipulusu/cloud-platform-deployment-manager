@@ -10,20 +10,31 @@ import (
 	"github.com/alecthomas/units"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/addresses"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/addresspools"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/cephmonitors"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/certificates"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/controllerFilesystems"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/cpus"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/datanetworks"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/disks"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/hostFilesystems"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/hosts"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/interfaceNetworks"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/interfaces"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/kernel"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/labels"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/licenses"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/memory"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/networks"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/osds"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/partitions"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/physicalvolumes"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/ptpinstances"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/ptpinterfaces"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/routes"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/serviceparameters"
 	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/storagebackends"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/storagetiers"
+	"github.com/gophercloud/gophercloud/starlingx/inventory/v1/volumegroups"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	common "github.com/wind-river/cloud-platform-deployment-manager/common"
@@ -265,7 +276,7 @@ var _ = Describe("Constructor utils for kind", func() {
 				if reflect.DeepEqual(profileLabels, profileLabels1) || reflect.DeepEqual(profileLabels, profileLabels2) {
 					flag = true
 				}
-				Expect(flag).To(Equal(true))
+				Expect(flag).To(BeTrue())
 			})
 		})
 	})
@@ -1055,6 +1066,577 @@ var _ = Describe("Constructor utils for kind", func() {
 				err := parseCertificateInfo(spec, certificates)
 				Expect(err).To(BeNil())
 				Expect(*spec.Certificates).To(Equal(want))
+			})
+		})
+	})
+	Describe("Test parseMonitorInfo", func() {
+		Context("When one of the monitor hostname is same as host name", func() {
+			It("Sucessfully adds the monitor info to the profile spec", func() {
+				size := 1
+				profile := &HostProfileSpec{
+					Storage: &ProfileStorageInfo{},
+				}
+				host := platform.HostInfo{
+					Host: hosts.Host{
+						Hostname: "hostname1",
+					},
+					Monitors: []cephmonitors.CephMonitor{
+						{
+							Hostname: "hostname1",
+							Size:     size,
+						},
+						{
+							Hostname: "hostname",
+							Size:     size,
+						},
+					},
+				}
+				want := MonitorInfo{
+					Size: &size,
+				}
+				err := parseMonitorInfo(profile, host)
+				Expect(err).To(BeNil())
+				Expect(*profile.Storage.Monitor).To(Equal(want))
+			})
+		})
+	})
+	Describe("Test parseHostFileSystemInfo", func() {
+		Context("When filesystems is not nil", func() {
+			It("Sucessfully parses hostFileSystem Info without any error", func() {
+				spec := &HostProfileSpec{
+					Storage: &ProfileStorageInfo{},
+				}
+				fileSystems := []hostFilesystems.FileSystem{
+					{
+						Name: "FsName1",
+						Size: 1,
+					},
+					{
+						Name: "FsName2",
+						Size: 2,
+					},
+				}
+				want := FileSystemList{
+					{
+						Name: "FsName1",
+						Size: 1,
+					},
+					{
+						Name: "FsName2",
+						Size: 2,
+					},
+				}
+				err := parseHostFileSystemInfo(spec, fileSystems)
+				Expect(err).To(BeNil())
+				Expect(*spec.Storage.FileSystems).To(Equal(want))
+			})
+		})
+	})
+	Describe("Test NewNamespace", func() {
+		Context("When the new namespace is to be created with name", func() {
+			It("Sucessfully create the namespace instance without error", func() {
+				name := "newns"
+				expNS := &v1.Namespace{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "v1",
+						Kind:       "Namespace",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: name,
+					},
+				}
+				gotNS, err := NewNamespace(name)
+				Expect(err).To(BeNil())
+				Expect(gotNS).To(Equal(expNS))
+			})
+		})
+	})
+	Describe("Test parseBoardManagementInfo", func() {
+		Context("When BMType is not nil", func() {
+			It("Host BM info is added to the Profile boardmanagement without any error", func() {
+				profile := &HostProfileSpec{
+					BoardManagement: &BMInfo{},
+				}
+
+				bMUsername, bMAddress, bMType := "BMUsername", "BMAddress", "BMType"
+				host := platform.HostInfo{
+					Host: hosts.Host{
+						BMUsername: &bMUsername,
+						BMAddress:  &bMAddress,
+						BMType:     &bMType,
+					},
+				}
+
+				exp := BMInfo{
+					Type:    &bMType,
+					Address: &bMAddress,
+					Credentials: &BMCredentials{
+						Password: &BMPasswordInfo{
+							Secret: "bmc-secret",
+						},
+					},
+				}
+
+				err := parseBoardManagementInfo(profile, host)
+				Expect(err).To(BeNil())
+				Expect(*profile.BoardManagement).To(Equal(exp))
+			})
+		})
+		Context("When BMType is nil", func() {
+			It("Profile boardmanagement is assigned to nil values without any error", func() {
+				profile := &HostProfileSpec{
+					BoardManagement: &BMInfo{},
+				}
+				host := platform.HostInfo{
+					Host: hosts.Host{},
+				}
+				bmType := "none"
+				exp := BMInfo{
+					Type:        &bmType,
+					Address:     nil,
+					Credentials: nil,
+				}
+				err := parseBoardManagementInfo(profile, host)
+				Expect(err).To(BeNil())
+				Expect(*profile.BoardManagement).To(Equal(exp))
+			})
+		})
+	})
+	Describe("Test autoGenerateBMSecretName", func() {
+		Context("When autoGenerateBMSecretName is called", func() {
+			It("Returns bmc-secret string", func() {
+				exp := "bmc-secret"
+				got := autoGenerateBMSecretName()
+				Expect(got).To(Equal(exp))
+			})
+		})
+	})
+	Describe("Test parseOSDInfo", func() {
+		Context("", func() {
+			It("", func() {
+				clusterName := "clusterName"
+				profile := &HostProfileSpec{
+					Storage: &ProfileStorageInfo{},
+				}
+				storeTiers := map[string]*storagetiers.StorageTier{}
+				storeTiers[clusterName] = &storagetiers.StorageTier{
+					ID: "TierUUID",
+				}
+				location := "journal_loc"
+				path := "/a/b/c"
+				host := platform.HostInfo{
+					OSDs: []osds.OSD{
+						{
+							TierUUID: "TierUUID",
+							DiskID:   "DiskID",
+							JournalInfo: osds.JournalInfo{
+								Location: &location,
+								Path:     &path,
+							},
+							Function: "journal",
+						},
+					},
+					StorageTiers: storeTiers,
+					Disks: []disks.Disk{
+						{
+							ID:         "DiskID",
+							DevicePath: "/a/b/c",
+						},
+					},
+				}
+
+				exp := OSDList{
+					{
+						Function:    "journal",
+						ClusterName: &clusterName,
+						Path:        "/a/b/c",
+						Journal: &JournalInfo{
+							Location: path,
+							Size:     0,
+						},
+					},
+				}
+				err := parseOSDInfo(profile, host)
+				Expect(err).To(BeNil())
+				Expect(*profile.Storage.OSDs).To(Equal(exp))
+			})
+		})
+	})
+	Describe("Test parseMemoryInfo", func() {
+		Context("", func() {
+			It("", func() {
+				personality := hosts.PersonalityWorker
+				profile := &HostProfileSpec{
+					ProfileBaseAttributes: ProfileBaseAttributes{
+						Personality: &personality,
+					},
+					Memory: MemoryNodeList{},
+				}
+				vM2MHugepagesPending := 1
+				host := platform.HostInfo{
+					Memory: []memory.Memory{
+						{
+							Processor:             1,
+							Platform:              1,
+							VM2MHugepagesCount:    1,
+							VM2MHugepagesPending:  &vM2MHugepagesPending,
+							VSwitchHugepagesSize:  2,
+							VM1GHugepagesCount:    1,
+							VSwitchHugepagesCount: 3,
+						},
+					},
+				}
+				exp := MemoryNodeList{
+					{
+						Node: 1,
+						Functions: MemoryFunctionList{
+							{
+								Function:  memory.MemoryFunctionPlatform,
+								PageSize:  string(PageSize4K),
+								PageCount: (1 * int(units.Mebibyte)) / PageSize4K.Bytes(),
+							},
+							{
+								Function:  memory.MemoryFunctionVSwitch,
+								PageSize:  string(PageSize2M),
+								PageCount: 3,
+							},
+							{
+								Function:  memory.MemoryFunctionVM,
+								PageSize:  string(PageSize2M),
+								PageCount: vM2MHugepagesPending,
+							},
+							{
+								Function:  memory.MemoryFunctionVM,
+								PageSize:  string(PageSize1G),
+								PageCount: 1,
+							},
+						},
+					},
+				}
+				err := parseMemoryInfo(profile, host)
+				Expect(err).To(BeNil())
+				Expect(profile.Memory).To(Equal(exp))
+			})
+		})
+	})
+	Describe("Test parsePhysicalVolumeInfo", func() {
+		Context("", func() {
+			It("", func() {
+
+				group := &VolumeGroupInfo{
+					PhysicalVolumes: PhysicalVolumeList{},
+				}
+				vg := &volumegroups.VolumeGroup{
+					ID: "vgID",
+				}
+				host := platform.HostInfo{
+					PhysicalVolumes: []physicalvolumes.PhysicalVolume{
+						{
+							ID:            "vID",
+							VolumeGroupID: "vgID",
+							Type:          physicalvolumes.PVTypePartition,
+							DevicePath:    "/a/b/c",
+							DeviceUUID:    "DeviceUUID",
+						},
+					},
+					Partitions: []partitions.DiskPartition{
+						{
+							ID:         "DeviceUUID",
+							DevicePath: "/a/b/c",
+							Size:       1024,
+						},
+					},
+				}
+				size := 1
+				exp := PhysicalVolumeList{
+					{
+						Type: physicalvolumes.PVTypePartition,
+						Path: "/a/b/c",
+						Size: &size,
+					},
+				}
+				err := parsePhysicalVolumeInfo(group, vg, host)
+				Expect(err).To(BeNil())
+				Expect(group.PhysicalVolumes).To(Equal(exp))
+			})
+		})
+		Context("", func() {
+			It("", func() {
+
+				group := &VolumeGroupInfo{
+					PhysicalVolumes: PhysicalVolumeList{},
+				}
+				vg := &volumegroups.VolumeGroup{
+					ID: "vgID",
+				}
+				host := platform.HostInfo{
+					PhysicalVolumes: []physicalvolumes.PhysicalVolume{
+						{
+							ID:            "vID",
+							VolumeGroupID: "vgID",
+							Type:          physicalvolumes.PVTypePartition,
+							DevicePath:    "/a/b/c",
+							DeviceUUID:    "DeviceUUID",
+						},
+					},
+					Partitions: []partitions.DiskPartition{
+						{
+							ID:         "DeviceUUID1",
+							DevicePath: "/a/b/c",
+							Size:       1024,
+						},
+					},
+				}
+				err := parsePhysicalVolumeInfo(group, vg, host)
+				msg := ErrMissingSystemResource{"failed to lookup partition DeviceUUID"}
+				Expect(err).To(Equal(msg))
+
+			})
+		})
+	})
+
+	Describe("Test NewMissingSystemResource func", func() {
+		Context("", func() {
+			It("", func() {
+				msg := "error msg"
+				exp := ErrMissingSystemResource{
+					message: "error msg",
+				}
+				out := NewMissingSystemResource(msg)
+				Expect(out).To(Equal(exp))
+			})
+		})
+	})
+
+	Describe("Test Error func", func() {
+		Context("", func() {
+			It("", func() {
+				in := ErrMissingSystemResource{
+					message: "error msg",
+				}
+				exp := "error msg"
+				out := in.Error()
+				Expect(out).To(Equal(exp))
+			})
+		})
+	})
+
+	Describe("Test parseVolumeGroupInfo", func() {
+		Context("", func() {
+			It("", func() {
+				profile := &HostProfileSpec{
+					Storage: &ProfileStorageInfo{
+						VolumeGroups: &VolumeGroupList{},
+					},
+				}
+				lvmType := "LVMType"
+				host := platform.HostInfo{
+					VolumeGroups: []volumegroups.VolumeGroup{
+						{
+							LVMInfo: volumegroups.LVMInfo{
+								Name: "volumegroupName",
+							},
+							Capabilities: volumegroups.Capabilities{
+								LVMType: &lvmType,
+							},
+							ID: "vgID",
+						},
+					},
+					PhysicalVolumes: []physicalvolumes.PhysicalVolume{
+						{
+							ID:            "vID",
+							VolumeGroupID: "vgID",
+							Type:          physicalvolumes.PVTypePartition,
+							DevicePath:    "/a/b/c",
+							DeviceUUID:    "DeviceUUID",
+						},
+					},
+					Partitions: []partitions.DiskPartition{
+						{
+							ID:         "DeviceUUID",
+							DevicePath: "/a/b/c",
+							Size:       1024,
+						},
+					},
+				}
+				size := 1
+				exp := VolumeGroupList{
+					{
+						Name:    "volumegroupName",
+						LVMType: &lvmType,
+						PhysicalVolumes: PhysicalVolumeList{
+							{
+								Type: "partition",
+								Path: "/a/b/c",
+								Size: &size,
+							},
+						},
+					},
+				}
+
+				err := parseVolumeGroupInfo(profile, host)
+				Expect(err).To(BeNil())
+				Expect(*profile.Storage.VolumeGroups).To(Equal(exp))
+			})
+		})
+	})
+
+	Describe("Test parseStorageInfo", func() {
+		Context("", func() {
+			It("", func() {
+				profile := &HostProfileSpec{
+					Storage: &ProfileStorageInfo{
+						VolumeGroups: &VolumeGroupList{},
+					},
+				}
+				lvmType := "LVMType"
+				host := platform.HostInfo{
+					VolumeGroups: []volumegroups.VolumeGroup{
+						{
+							LVMInfo: volumegroups.LVMInfo{
+								Name: "volumegroupName",
+							},
+							Capabilities: volumegroups.Capabilities{
+								LVMType: &lvmType,
+							},
+							ID: "vgID",
+						},
+					},
+					PhysicalVolumes: []physicalvolumes.PhysicalVolume{
+						{
+							ID:            "vID",
+							VolumeGroupID: "vgID",
+							Type:          physicalvolumes.PVTypePartition,
+							DevicePath:    "/a/b/c",
+							DeviceUUID:    "DeviceUUID",
+						},
+					},
+					Partitions: []partitions.DiskPartition{
+						{
+							ID:         "DeviceUUID",
+							DevicePath: "/a/b/c",
+							Size:       1024,
+						},
+					},
+					Host: hosts.Host{
+						Personality: "worker",
+					},
+				}
+				err := parseStorageInfo(profile, host)
+				Expect(err).To(BeNil())
+			})
+		})
+	})
+
+	Describe("Test parseInterfaceInfo", func() {
+		Context("", func() {
+			It("", func() {
+				profile := &HostProfileSpec{
+					Storage: &ProfileStorageInfo{
+						VolumeGroups: &VolumeGroupList{},
+					},
+				}
+				iPv4Pool := "01:22:33:12"
+				iPv6Pool := "11:29:43:12"
+				pTPRole := "ptp master"
+				vID := 1234
+				aEMode := "AEMode"
+				aETransmitHash := "AETransmitHash"
+				aEPrimReselect := "AEPrimReselect"
+				vFCount := 5
+				vFDriver := "VFDriver"
+				maxTxRate := 7
+				host := platform.HostInfo{
+					PTPInterfaces: []ptpinterfaces.PTPInterface{
+						{
+							Name:           "PTPInterfaceName",
+							InterfaceNames: []string{"hostName/infID"},
+						},
+						{
+							Name:           "PTPInterfaceName1",
+							InterfaceNames: []string{"hostName/infID1"},
+						},
+					},
+					InterfaceNetworks: []interfaceNetworks.InterfaceNetwork{
+						{
+							InterfaceUUID: "infID",
+							NetworkName:   "infNetName",
+						},
+						{
+							InterfaceUUID: "infID1",
+							NetworkName:   "infNetName2",
+						},
+					},
+					Pools: []addresspools.AddressPool{
+						{
+							ID:   iPv4Pool,
+							Name: "poolName4",
+						},
+						{
+							ID:   iPv6Pool,
+							Name: "poolName6",
+						},
+					},
+					Interfaces: []interfaces.Interface{
+						{
+							ID:       "infID",
+							Name:     "infName",
+							Class:    interfaces.IFClassPlatform,
+							MTU:      4,
+							IPv4Pool: &iPv4Pool,
+							IPv6Pool: &iPv6Pool,
+							PTPRole:  &pTPRole,
+							Type:     "ethernet",
+							Uses:     []string{"use1", "use2"},
+						},
+						{
+							ID:    "infID1",
+							Name:  "infName1",
+							Class: interfaces.IFClassPlatform,
+							MTU:   10,
+							Type:  interfaces.IFTypeVLAN,
+							Uses:  []string{"use3"},
+							VID:   &vID,
+						},
+						{
+							ID:             "infID2",
+							Name:           "infName2",
+							Class:          interfaces.IFClassPlatform,
+							MTU:            9,
+							Type:           interfaces.IFTypeAE,
+							Uses:           []string{"use4"},
+							AEMode:         &aEMode,
+							AETransmitHash: &aETransmitHash,
+							AEPrimReselect: &aEPrimReselect,
+						},
+						{
+							ID:    "infID3",
+							Name:  "infName3",
+							Class: interfaces.IFClassPlatform,
+							MTU:   10,
+							Type:  interfaces.IFTypeVirtual,
+							Uses:  []string{"use5"},
+						},
+						{
+							ID:        "infID4",
+							Name:      "infName4",
+							Class:     interfaces.IFClassPlatform,
+							MTU:       7,
+							Type:      interfaces.IFTypeVF,
+							Uses:      []string{"use6"},
+							VFCount:   &vFCount,
+							VFDriver:  &vFDriver,
+							MaxTxRate: &maxTxRate,
+						},
+					},
+
+					Host: hosts.Host{
+						Hostname:    "hostName",
+						Personality: "worker",
+					},
+				}
+				err := parseInterfaceInfo(profile, host)
+				Expect(err).To(BeNil())
 			})
 		})
 	})

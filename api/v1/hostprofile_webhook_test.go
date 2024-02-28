@@ -108,7 +108,8 @@ var _ = Describe("hostProfile_webhook functions", func() {
 					Type: physicalvolumes.PVTypePartition,
 				}
 				err := validatePhysicalVolumeInfo(obj)
-				Expect(err).To(Equal(errors.New("partition specifications must include a 'size' attribute")))
+				msg := errors.New("partition specifications must include a 'size' attribute")
+				Expect(err).To(Equal(msg))
 			})
 		})
 		Context("When the volume type is not partition", func() {
@@ -143,6 +144,222 @@ var _ = Describe("hostProfile_webhook functions", func() {
 					},
 				}
 				err := validateMemoryInfo(obj)
+				Expect(err).To(BeNil())
+			})
+		})
+		Context("When duplicate memory entries are present", func() {
+			It("Validates the memory info and throws error", func() {
+				obj := &HostProfile{
+					Spec: HostProfileSpec{
+						Memory: MemoryNodeList{
+							{
+								Node: 1,
+								Functions: MemoryFunctionList{
+									{
+										Function:  memory.MemoryFunctionPlatform,
+										PageSize:  string(PageSize4K),
+										PageCount: 100,
+									},
+									{
+										Function:  memory.MemoryFunctionPlatform,
+										PageSize:  string(PageSize4K),
+										PageCount: 150,
+									},
+								},
+							},
+						},
+					},
+				}
+				err := validateMemoryInfo(obj)
+				msg := errors.New("duplicate memory entries are not allowed for node 1 function platform pagesize 4KB.")
+				Expect(err).To(Equal(msg))
+			})
+		})
+	})
+	Describe("validateVolumeGroupInfo function is tested", func() {
+		Context("When the vloumeGroup info has partition with size attr", func() {
+			It("Successfully validates the VolumeGroupInfo without errors", func() {
+				size := 1
+				obj := &VolumeGroupInfo{
+					PhysicalVolumes: PhysicalVolumeList{
+						{
+							Type: "disk",
+							Path: "/a/b/c",
+							Size: &size,
+						},
+						{
+							Type: "partition",
+							Path: "pathtodevice",
+							Size: &size,
+						},
+					},
+				}
+				err := validateVolumeGroupInfo(obj)
+				Expect(err).To(BeNil())
+			})
+		})
+		Context("When the vloumeGroup info has partition without size attr", func() {
+			It("Throws the partition specifications must include a 'size' attribute error", func() {
+				size := 1
+				obj := &VolumeGroupInfo{
+					PhysicalVolumes: PhysicalVolumeList{
+						{
+							Type: "disk",
+							Path: "/a/b/c",
+							Size: &size,
+						},
+						{
+							Type: "partition",
+							Path: "pathtodevice",
+						},
+					},
+				}
+				err := validateVolumeGroupInfo(obj)
+				msg := errors.New("partition specifications must include a 'size' attribute")
+				Expect(err).To(Equal(msg))
+			})
+		})
+	})
+	Describe("validateStorageInfo function is tested", func() {
+		Context("When there is size attr present with partition type physcial vol", func() {
+			It("Succesfully validates Storage Info without error", func() {
+				size := 1
+				obj := &HostProfile{
+					Spec: HostProfileSpec{
+						Storage: &ProfileStorageInfo{
+							VolumeGroups: &VolumeGroupList{
+								{
+									Name: "VolGrpList",
+									PhysicalVolumes: PhysicalVolumeList{
+										{
+											Type: "disk",
+											Path: "/a/b/c",
+											Size: &size,
+										},
+										{
+											Type: "partition",
+											Path: "pathtodevice",
+											Size: &size,
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				err := validateStorageInfo(obj)
+				Expect(err).To(BeNil())
+			})
+		})
+	})
+	Describe("validateHostProfile function is tested", func() {
+		Context("When the spec base is empty", func() {
+			It("Throws profile base name must not be empty error", func() {
+				size := 1
+				baseEmpty := ""
+				obj := &HostProfile{
+					Spec: HostProfileSpec{
+						Base: &baseEmpty,
+						Storage: &ProfileStorageInfo{
+							VolumeGroups: &VolumeGroupList{
+								{
+									Name: "VolGrpList",
+									PhysicalVolumes: PhysicalVolumeList{
+										{
+											Type: "disk",
+											Path: "/a/b/c",
+											Size: &size,
+										},
+										{
+											Type: "partition",
+											Path: "pathtodevice",
+											Size: &size,
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				err := obj.validateHostProfile()
+				msg := errors.New("profile base name must not be empty")
+				Expect(err).To(Equal(msg))
+			})
+		})
+		Context("When the spec base is empty", func() {
+			It("Throws profile base name must not be empty error", func() {
+				baseEmpty := ""
+				obj := &HostProfile{
+					Spec: HostProfileSpec{
+						Base: &baseEmpty,
+					},
+				}
+				err := obj.validateHostProfile()
+				msg := errors.New("profile base name must not be empty")
+				Expect(err).To(Equal(msg))
+			})
+		})
+		Context("When the spec base is non-empty", func() {
+			It("Successfully validates Host Profile without any error", func() {
+				size := 1
+				base := "base"
+				obj := &HostProfile{
+					Spec: HostProfileSpec{
+						Base: &base,
+						Processors: ProcessorNodeList{
+							{
+								Functions: ProcessorFunctionList{
+									{
+										Function: "platform",
+										Count:    1,
+									},
+									{
+										Function: "application",
+										Count:    2,
+									},
+								},
+								Node: 5,
+							},
+						},
+						Memory: MemoryNodeList{
+							{
+								Node: 1,
+								Functions: MemoryFunctionList{
+									{
+										Function:  memory.MemoryFunctionPlatform,
+										PageSize:  string(PageSize4K),
+										PageCount: 100,
+									},
+									{
+										Function:  "vm",
+										PageSize:  string(PageSize2M),
+										PageCount: 150,
+									},
+								},
+							},
+						},
+						Storage: &ProfileStorageInfo{
+							VolumeGroups: &VolumeGroupList{
+								{
+									Name: "VolGrpList",
+									PhysicalVolumes: PhysicalVolumeList{
+										{
+											Type: "disk",
+											Path: "/a/b/c",
+											Size: &size,
+										},
+										{
+											Type: "partition",
+											Path: "pathtodevice",
+											Size: &size,
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				err := obj.validateHostProfile()
 				Expect(err).To(BeNil())
 			})
 		})
