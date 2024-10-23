@@ -330,6 +330,9 @@ func CollectCmdRun(cmd *cobra.Command, args []string) {
 		os.Exit(40)
 	}
 
+	//Remove controller0Address and controller0Address if the values are empty
+	build.CleanEmptyAttributes(deployment)
+
 	yamlBuf, err := deployment.ToYAML()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to convert deployment struct to YAML: %s\n", err.Error())

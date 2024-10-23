@@ -32,6 +32,21 @@ type HostFilter interface {
 type Controller0Filter struct {
 }
 
+func CleanEmptyAttributes(deployment *Deployment) {
+	if deployment.AddressPools != nil {
+		for _, addrPool := range deployment.AddressPools {
+			// Check if Controller0Address is not nil and if it's an empty string
+			if addrPool.Spec.Controller0Address != nil && *addrPool.Spec.Controller0Address == "" {
+				addrPool.Spec.Controller0Address = nil
+			}
+			// Check if Controller1Address is not nil and if it's an empty string
+			if addrPool.Spec.Controller1Address != nil && *addrPool.Spec.Controller1Address == "" {
+				addrPool.Spec.Controller1Address = nil
+			}
+		}
+	}
+}
+
 func NewController0Filter() *Controller0Filter {
 	return &Controller0Filter{}
 }
